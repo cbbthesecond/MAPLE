@@ -1,25 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-LaunchWindowOptimizationSubFile.py
-
-Searches for the best Earth→Mars transfer opportunity via a porkchop approach,
-calculates the LEO injection Δv, and returns essential data including:
-  - best_departure_date (datetime)
-  - best_arrival_date_et (float, SPICE ephemeris time)
-  - dv_injection (Quantity, the injection Δv in m/s)
-  - best_tof (float, time of flight in days)
-  - v_inf_arr (Quantity, the arrival hyperbolic excess velocity vector at Mars)
-  - best_mars_velocity_at_arrival (Quantity, Mars's heliocentric velocity at arrival)
-  - total_dv (same numeric value as dv_injection, but labeled as the “total dv”)
-  - departure_time (same as best_departure_date)
-  - time_of_flight (same numeric value as best_tof, but labeled as “time_of_flight”)
-
-Usage:
-  - Run directly to see best departure info.
-  - Or import get_best_departure_info() from this module.
-"""
-
 import numpy as np
 import spiceypy as spice
 from astropy import units as u
@@ -48,7 +28,6 @@ def cached_spice_state(body_name, et, frame, observer_name, gm_sun_value=GM_SUN_
         return state, light_time
 
 def initialize_spice_kernels():
-    """Initialize SPICE kernels with error checking and inject default leap seconds if needed."""
     current_directory = os.path.dirname(os.path.abspath(__file__))
     kernel_directory = os.path.join(current_directory, 'spice_kernels')
     kernels_to_load = [
@@ -214,20 +193,6 @@ def compute_injection_burn(v_dep_lambert, earth_v_dep):
     return dv_injection_mag * u.m/u.s
 
 def get_best_departure_info():
-    """
-    Returns a dictionary with:
-      {
-        "best_departure_date": <datetime>,
-        "best_arrival_date_et": <float, SPICE ET>,
-        "dv_injection": <Quantity in m/s>,
-        "best_tof": <float, days>,
-        "v_inf_arr": <Quantity in km/s>,
-        "best_mars_velocity_at_arrival": <Quantity in m/s>,
-        "total_dv": <same numeric value as dv_injection>,
-        "departure_time": <same as best_departure_date>,
-        "time_of_flight": <same numeric value as best_tof>
-      }
-    """
     departure_body_name_local = "EARTH"
     target_body_name_local    = "MARS"
     search_start_str_local    = "2028-01-01"
