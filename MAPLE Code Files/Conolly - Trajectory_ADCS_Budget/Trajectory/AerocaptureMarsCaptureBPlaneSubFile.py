@@ -1,29 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-AerocaptureMarsCaptureBPlaneSubFile.py
-
-Implements:
-1) single_pass_aerocapture_dv(...) – realistic logic for single-pass aerocapture with
-   integrated drag and thermal-limit adjustment.
-   - It searches for a safe periapsis altitude (above Mars surface) such that the convective 
-     heat flux (q̇ = K_HEATING * √ρ * vₚ³) does not exceed the threshold (150 kW/m²).
-   - It then computes a capture orbit with periapsis = R_MARS + safe_peri_alt and apoapsis = R_MARS + apo_target_m.
-   - Optionally, it integrates the drag during the atmospheric pass to determine the effective
-     speed at exit and the maximum drag force experienced.
-   - The required capture Δv is the difference between the effective speed at periapsis and the 
-     target orbital speed.
-   - Returns the capture Δv, periapsis altitude (above surface), target apoapsis altitude (above surface),
-     computed eccentricity, method string, and a state vector at apoapsis.
-2) get_mars_capture_dv(v_inf_arr) – a wrapper around single_pass_aerocapture_dv(...).
-3) main() – obtains the arrival V∞ from LaunchWindowOptimizationSubFile (if possible),
-   applies an explicit B‑plane targeting correction maneuver for a precise intercept,
-   then calls get_mars_capture_dv(...), printing all relevant results (including the injection,
-   correction, and capture Δv values).
-
-This version retains the B‑plane targeting logic while using the updated aerocapture calculations.
-"""
-
 import os
 import sys
 import time
@@ -50,7 +26,6 @@ except Exception as e:
 # SPICE Kernel Initialization (for this module)
 # -----------------------------
 def initialize_spice_kernels():
-    """Initialize SPICE kernels with error checking and inject default leap seconds if needed."""
     current_directory = os.path.dirname(os.path.abspath(__file__))
     kernel_directory = os.path.join(current_directory, 'spice_kernels')
     kernels_to_load = [
@@ -166,10 +141,6 @@ K_HEATING = 1.83  # [W/(m^2)]/( (kg/m^3)^0.5*(m/s)^3 )
 THERMAL_THRESHOLD = 1.5e6  # W/m^2
 
 def compute_heat_flux(altitude, v_inf, mu, k_heating):
-    """
-    Compute the convective heat flux at periapsis given a periapsis altitude.
-    Returns q_dot (W/m^2) and the computed periapsis speed v_p (m/s).
-    """
     r = R_MARS.to(u.m).value + altitude
     v_p = np.sqrt(v_inf**2 + 2 * mu / r)
     rho = mars_atmospheric_density(altitude * u.m).value
@@ -177,10 +148,6 @@ def compute_heat_flux(altitude, v_inf, mu, k_heating):
     return q_dot, v_p
 
 def find_safe_periapsis_alt(v_inf, mu, threshold, k_heating, alt_min=100e3, alt_max=500e3, tol=1e2):
-    """
-    Search for the minimum periapsis altitude (in m) such that the computed heat flux 
-    does not exceed the threshold.
-    """
     low = alt_min
     high = alt_max
     safe_alt = high
@@ -198,14 +165,6 @@ def find_safe_periapsis_alt(v_inf, mu, threshold, k_heating, alt_min=100e3, alt_
 # Drag Integration for Aerocapture
 # -----------------------------
 def simulate_aerocapture_drag(v_inf, r_p, mu, Cd, A, m, h_entry):
-    """
-    Integrate the spacecraft trajectory through the atmosphere to capture drag deceleration.
-    Also calculates the maximum drag force encountered.
-    
-    Returns:
-      v_exit    : Exit speed in m/s.
-      F_drag_max: Maximum drag force encountered in Newtons.
-    """
     e = 1 + (r_p * v_inf**2) / mu
     p = r_p * (1 + e)
     r_entry = R_MARS.to(u.m).value + h_entry
@@ -262,22 +221,6 @@ def simulate_aerocapture_drag(v_inf, r_p, mu, Cd, A, m, h_entry):
 def single_pass_aerocapture_dv(v_inf_arr, apo_target_m, include_drag=True, Cd=1.8,
                                A=REF_AREA.to(u.m**2).value, m=SC_MASS.to(u.kg).value,
                                h_entry=250e3):
-    """
-    Compute the capture Δv for a single-pass aerocapture maneuver.
-    
-    This version:
-      - Searches for a safe periapsis altitude based on a convective heating limit.
-      - Uses that safe altitude for the capture orbit.
-      - Optionally integrates the drag during the atmospheric pass.
-    
-    Returns:
-      dv_capture       : Required capture Δv (m/s)
-      periapsis_alt_m  : Chosen periapsis altitude above surface (m)
-      target_apoapsis_m: Target apoapsis altitude above surface (m)
-      e_capture        : Capture orbit eccentricity
-      method           : String indicating the method used ("single_pass_drag")
-      capture_state_apo: State vector at apoapsis (6-element array)
-    """
     v_inf_m_s = v_inf_arr.to(u.m / u.s).value
     v_mag = np.linalg.norm(v_inf_m_s)
     if v_mag > 6000.0:
