@@ -1,30 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-AerobrakingSubFile_PDController_Final.py
-
-Demonstrates a PD-style bank-angle controller for a Mars aerobraking campaign,
-with the actual PD bank angle stored in pass_data for plotting.
-This avoids the old placeholder (progress*90) that forced a 90° final angle in plots.
-
-Features:
-  - Spacecraft enters at 90° inclination (i = π/2).
-  - Multi-pass approach reduces apoapsis from a large initial orbit to ~350 km.
-  - If periapsis < desired altitude, small impulsive burns raise it.
-  - Final circularization burn at 350 km.
-  - Plots:
-      1) Bank angle vs pass (overlaid with inclination),
-      2) Periapsis altitude vs pass,
-      3) Impulsive Δv vs pass,
-      4) 3D orbit plot (first pass, last pass, every 30 passes, final orbit),
-      5) 2D top-down orbit plot (same orbits).
-
-Disclaimer:
-  - The drag integration is still a simplified approach.
-  - The "6-month" logic is placeholder for demonstration.
-  - You can refine the PD gains, atmosphere, etc. for real design.
-"""
-
 import numpy as np
 from astropy import units as u
 import jax
@@ -156,11 +131,6 @@ def simulate_drag_pass_diffrax(state_entry: np.ndarray, mu: float, R_M: float, h
                                desired_peri_alt_m: float, dt: float=1.0, t_max: float=10.0,
                                f_min_threshold: float=0.2, atmosphere_threshold: float=250e3,
                                phase: float=0.0):
-    """
-    PD approach with 'error = desired_incl_deg - current_incl_deg' sign convention.
-    We'll return the final commanded bank angle from the last sub-step
-    so we can store it in pass_data.
-    """
     y_current = jnp.array(state_entry)
     t_total = 0.0
     integrated_heating = 0.0
@@ -173,9 +143,6 @@ def simulate_drag_pass_diffrax(state_entry: np.ndarray, mu: float, R_M: float, h
     old_error_deg = 0.0
 
     desired_incl_deg = 92.78
-
-    # We'll store the final commanded angle each iteration, overwriting
-    # so we can return it after the loop ends.
     final_bank_cmd_deg = 0.0
 
     while t_total < t_max:
@@ -327,24 +294,10 @@ def multi_pass_aerobraking_fixed_peri(r_initial: u.Quantity, v_initial: u.Quanti
 # 5. FINAL CIRCULARIZATION
 # -----------------------------
 def final_circularization_burn(state: np.ndarray, mu: float) -> tuple[np.ndarray, float]:
-    """
-    Creates a circular orbit at the *current* radius |r_vec|, in the *current* orbital plane.
-    Doesn't force nu=pi or do any big plane reorientation.
-
-    Returns:
-      new_state: [r_vec, v_circ_vector]
-      delta_v: magnitude of the burn
-    """
-
-    # 1) Decompose current state
     r_vec = state[:3]
     v_vec = state[3:]
     r = np.linalg.norm(r_vec)
 
-    # 2) Build an orthonormal basis for the plane:
-    #    - r_hat = radial direction
-    #    - h_vec = cross(r,v) => normal to the plane
-    #    - t_hat = tangential direction = cross(h_vec, r_hat) => in-plane, orthonormal
     r_hat = r_vec / (r + 1e-12)
     h_vec = np.cross(r_vec, v_vec)
     h_norm = np.linalg.norm(h_vec) + 1e-12
@@ -359,10 +312,6 @@ def final_circularization_burn(state: np.ndarray, mu: float) -> tuple[np.ndarray
     # 3) Circular speed at this radius
     v_circ = np.sqrt(mu / r)
 
-    # 4) Desired velocity: purely tangential in-plane
-    #    If you want a "prograde" orbit, you might ensure the sign is correct
-    #    (some orbits might be retrograde if t_hat is reversed).
-    #    We'll assume you want prograde => dot(v_vec, t_hat) > 0 => if not, invert t_hat
     if np.dot(v_vec, t_hat) < 0.0:
         t_hat = -t_hat
 
